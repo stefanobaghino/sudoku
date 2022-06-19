@@ -13,12 +13,6 @@ pub enum Token {
     _9,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Cell {
-    Solved(Token),
-    Unsolved(EnumSet<Token>),
-}
-
 const BLOCK: usize = 3;
 const SIDE: usize = BLOCK * BLOCK;
 
@@ -28,12 +22,12 @@ trait Puzzle {
     fn block_for(&self, x: usize, y: usize) -> EnumSet<Token>;
 }
 
-impl Puzzle for [[Cell; SIDE]; SIDE] {
+impl Puzzle for [[EnumSet<Token>; SIDE]; SIDE] {
     fn row_for(&self, y: usize) -> EnumSet<Token> {
         let mut row = EnumSet::empty();
         for x in 0..SIDE {
-            if let Cell::Solved(token) = self[y][x] {
-                row |= token;
+            if self[y][x].len() == 1 {
+                row |= self[y][x];
             }
         }
         return row;
@@ -41,8 +35,8 @@ impl Puzzle for [[Cell; SIDE]; SIDE] {
     fn column_for(&self, x: usize) -> EnumSet<Token> {
         let mut column = EnumSet::empty();
         for y in 0..SIDE {
-            if let Cell::Solved(token) = self[y][x] {
-                column |= token;
+            if self[y][x].len() == 1 {
+                column |= self[y][x];
             }
         }
         return column;
@@ -53,8 +47,8 @@ impl Puzzle for [[Cell; SIDE]; SIDE] {
         let y_offset = y / BLOCK * BLOCK;
         for y in 0..BLOCK {
             for x in 0..BLOCK {
-                if let Cell::Solved(token) = self[y + y_offset][x + x_offset] {
-                    block |= token;
+                if self[y + y_offset][x + x_offset].len() == 1 {
+                    block |= self[y + y_offset][x + x_offset];
                 }
             }
         }
@@ -62,46 +56,38 @@ impl Puzzle for [[Cell; SIDE]; SIDE] {
     }
 }
 
-fn refine(puzzle: &mut [[Cell; SIDE]; SIDE]) {
+fn refine(puzzle: &mut [[EnumSet<Token>; SIDE]; SIDE]) {
     for y in 0..SIDE {
         for x in 0..SIDE {
-            if let Cell::Unsolved(candidates) = puzzle[y][x] {
-                puzzle[y][x] = Cell::Unsolved(
-                    candidates - puzzle.row_for(y) - puzzle.column_for(x) - puzzle.block_for(x, y),
-                );
+            if puzzle[y][x].len() > 1 {
+                puzzle[y][x] =
+                    puzzle[y][x] - puzzle.row_for(y) - puzzle.column_for(x) - puzzle.block_for(x, y)
             }
         }
     }
 }
 
-fn step(puzzle: &mut [[Cell; SIDE]; SIDE]) -> u8 {
-    let mut solved = 0;
+fn solved(puzzle: &[[EnumSet<Token>; SIDE]; SIDE]) -> bool {
     for y in 0..SIDE {
         for x in 0..SIDE {
-            if let Cell::Unsolved(candidates) = puzzle[y][x] {
-                if candidates.len() == 1 {
-                    puzzle[y][x] = Cell::Solved(candidates.iter().next().unwrap());
-                    solved += 1;
-                }
+            if puzzle[y][x].len() > 1 {
+                return false;
             }
         }
     }
-    return solved;
+    return true;
 }
 
-pub fn solve(puzzle: &mut [[Cell; SIDE]; SIDE]) {
-    loop {
+pub fn solve(puzzle: &mut [[EnumSet<Token>; SIDE]; SIDE]) {
+    while !solved(puzzle) {
         refine(puzzle);
-        if step(puzzle) == 0 {
-            break;
-        }
     }
 }
 
 #[cfg(test)]
 mod tests {
 
-    use super::{solve, Cell, Puzzle, Token, SIDE};
+    use super::{solve, Puzzle, Token, SIDE};
     use enumset::EnumSet;
 
     fn token_from_u8(n: u8) -> Token {
@@ -119,19 +105,19 @@ mod tests {
         }
     }
 
-    fn new_puzzle(matrix: [[u8; SIDE]; SIDE]) -> [[Cell; SIDE]; SIDE] {
-        let mut puzzle: [[Cell; SIDE]; SIDE] = [[Cell::Unsolved(EnumSet::all()); SIDE]; SIDE];
+    fn new_puzzle(matrix: [[u8; SIDE]; SIDE]) -> [[EnumSet<Token>; SIDE]; SIDE] {
+        let mut puzzle: [[EnumSet<Token>; SIDE]; SIDE] = [[EnumSet::all(); SIDE]; SIDE];
         for y in 0..SIDE {
             for x in 0..SIDE {
                 if matrix[y][x] != 0 {
-                    puzzle[y][x] = Cell::Solved(token_from_u8(matrix[y][x]));
+                    puzzle[y][x] = EnumSet::only(token_from_u8(matrix[y][x]));
                 }
             }
         }
         return puzzle;
     }
 
-    fn puzzle_1() -> [[Cell; SIDE]; SIDE] {
+    fn puzzle_1() -> [[EnumSet<Token>; SIDE]; SIDE] {
         return new_puzzle([
             [8, 0, 5, 4, 0, 0, 0, 0, 0],
             [0, 0, 2, 0, 0, 0, 0, 4, 5],
@@ -145,7 +131,7 @@ mod tests {
         ]);
     }
 
-    fn puzzle_2() -> [[Cell; SIDE]; SIDE] {
+    fn puzzle_2() -> [[EnumSet<Token>; SIDE]; SIDE] {
         return new_puzzle([
             [0, 0, 0, 1, 0, 5, 0, 7, 0],
             [2, 0, 0, 0, 0, 6, 0, 3, 0],
