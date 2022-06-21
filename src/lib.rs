@@ -13,84 +13,8 @@ pub enum Token {
     _9,
 }
 
-const BLOCK: usize = 3;
-const SIDE: usize = BLOCK * BLOCK;
-
-trait Puzzle {
-    fn row_for(&self, y: usize) -> EnumSet<Token>;
-    fn column_for(&self, x: usize) -> EnumSet<Token>;
-    fn block_for(&self, x: usize, y: usize) -> EnumSet<Token>;
-}
-
-impl Puzzle for [[EnumSet<Token>; SIDE]; SIDE] {
-    fn row_for(&self, y: usize) -> EnumSet<Token> {
-        let mut row = EnumSet::empty();
-        for x in 0..SIDE {
-            if self[y][x].len() == 1 {
-                row |= self[y][x];
-            }
-        }
-        return row;
-    }
-    fn column_for(&self, x: usize) -> EnumSet<Token> {
-        let mut column = EnumSet::empty();
-        for y in 0..SIDE {
-            if self[y][x].len() == 1 {
-                column |= self[y][x];
-            }
-        }
-        return column;
-    }
-    fn block_for(&self, x: usize, y: usize) -> EnumSet<Token> {
-        let mut block = EnumSet::empty();
-        let x_offset = x / BLOCK * BLOCK;
-        let y_offset = y / BLOCK * BLOCK;
-        for y in 0..BLOCK {
-            for x in 0..BLOCK {
-                if self[y + y_offset][x + x_offset].len() == 1 {
-                    block |= self[y + y_offset][x + x_offset];
-                }
-            }
-        }
-        return block;
-    }
-}
-
-fn refine(puzzle: &mut [[EnumSet<Token>; SIDE]; SIDE]) {
-    for y in 0..SIDE {
-        for x in 0..SIDE {
-            if puzzle[y][x].len() > 1 {
-                puzzle[y][x] =
-                    puzzle[y][x] - puzzle.row_for(y) - puzzle.column_for(x) - puzzle.block_for(x, y)
-            }
-        }
-    }
-}
-
-fn solved(puzzle: &[[EnumSet<Token>; SIDE]; SIDE]) -> bool {
-    for y in 0..SIDE {
-        for x in 0..SIDE {
-            if puzzle[y][x].len() > 1 {
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
-pub fn solve(puzzle: &mut [[EnumSet<Token>; SIDE]; SIDE]) {
-    while !solved(puzzle) {
-        refine(puzzle);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-
-    use super::{solve, Puzzle, Token, SIDE};
-    use enumset::EnumSet;
-
-    fn token_from_u8(n: u8) -> Token {
+impl Token {
+    fn from_u8(n: u8) -> Token {
         match n {
             1 => Token::_1,
             2 => Token::_2,
@@ -104,21 +28,84 @@ mod tests {
             _ => panic!("{} is not a valid input", n),
         }
     }
+}
 
-    fn new_puzzle(matrix: [[u8; SIDE]; SIDE]) -> [[EnumSet<Token>; SIDE]; SIDE] {
-        let mut puzzle: [[EnumSet<Token>; SIDE]; SIDE] = [[EnumSet::all(); SIDE]; SIDE];
+const BLOCK: usize = 3;
+const SIDE: usize = BLOCK * BLOCK;
+
+type AbstractPuzzle<A> = [[A; SIDE]; SIDE];
+pub type Puzzle = AbstractPuzzle<EnumSet<Token>>;
+
+pub struct Game {
+    puzzle: Puzzle,
+    rows: [EnumSet<Token>; SIDE],
+    columns: [EnumSet<Token>; SIDE],
+    blocks: [[EnumSet<Token>; BLOCK]; BLOCK],
+}
+
+impl Game {
+    pub fn new(matrix: AbstractPuzzle<u8>) -> Game {
+        let mut game: Game = Game {
+            puzzle: [[EnumSet::all(); SIDE]; SIDE],
+            rows: [EnumSet::empty(); SIDE],
+            columns: [EnumSet::empty(); SIDE],
+            blocks: [[EnumSet::empty(); BLOCK]; BLOCK],
+        };
         for y in 0..SIDE {
             for x in 0..SIDE {
                 if matrix[y][x] != 0 {
-                    puzzle[y][x] = EnumSet::only(token_from_u8(matrix[y][x]));
+                    game.puzzle[y][x] = EnumSet::only(Token::from_u8(matrix[y][x]));
                 }
             }
         }
-        return puzzle;
+        return game;
+    }
+    fn over(&self) -> bool {
+        for y in 0..SIDE {
+            for x in 0..SIDE {
+                if self.puzzle[y][x].len() > 1 {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+    fn play(&mut self) {
+        for y in 0..SIDE {
+            for x in 0..SIDE {
+                match self.puzzle[y][x].len() {
+                    1 => self.update_at(x, y),
+                    _ => self.refine_at(x, y),
+                }
+            }
+        }
     }
 
-    fn puzzle_1() -> [[EnumSet<Token>; SIDE]; SIDE] {
-        return new_puzzle([
+    fn update_at(&mut self, x: usize, y: usize) {
+        self.rows[y] |= self.puzzle[y][x];
+        self.columns[x] |= self.puzzle[y][x];
+        self.blocks[y / BLOCK][x / BLOCK] |= self.puzzle[y][x];
+    }
+
+    fn refine_at(&mut self, x: usize, y: usize) {
+        self.puzzle[y][x] =
+            self.puzzle[y][x] - self.rows[y] - self.columns[x] - self.blocks[y / BLOCK][x / BLOCK];
+    }
+}
+
+pub fn solve(game: &mut Game) {
+    while !game.over() {
+        game.play();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::{solve, Game, Token};
+
+    fn game_1() -> Game {
+        return Game::new([
             [8, 0, 5, 4, 0, 0, 0, 0, 0],
             [0, 0, 2, 0, 0, 0, 0, 4, 5],
             [0, 0, 0, 0, 6, 0, 2, 9, 0],
@@ -131,8 +118,8 @@ mod tests {
         ]);
     }
 
-    fn puzzle_2() -> [[EnumSet<Token>; SIDE]; SIDE] {
-        return new_puzzle([
+    fn game_2() -> Game {
+        return Game::new([
             [0, 0, 0, 1, 0, 5, 0, 7, 0],
             [2, 0, 0, 0, 0, 6, 0, 3, 0],
             [0, 0, 3, 0, 0, 8, 0, 4, 0],
@@ -147,33 +134,47 @@ mod tests {
 
     #[test]
     fn row_for() {
-        assert_eq!(puzzle_1().row_for(0), Token::_8 | Token::_5 | Token::_4);
+        let mut game = game_1();
+        for y in 0..super::SIDE {
+            for x in 0..super::SIDE {
+                if game.puzzle[y][x].len() == 1 {
+                    game.update_at(x, y)
+                }
+            }
+        }
+        assert_eq!(game.rows[0], Token::_8 | Token::_5 | Token::_4);
     }
 
     #[test]
     fn column_for() {
-        assert_eq!(puzzle_1().column_for(0), Token::_8 | Token::_9 | Token::_4);
+        let mut game = game_1();
+        for y in 0..super::SIDE {
+            for x in 0..super::SIDE {
+                if game.puzzle[y][x].len() == 1 {
+                    game.update_at(x, y)
+                }
+            }
+        }
+        assert_eq!(game.columns[0], Token::_8 | Token::_9 | Token::_4);
     }
 
     #[test]
     fn block_for() {
-        assert_eq!(
-            puzzle_1().block_for(0, 0),
-            Token::_8 | Token::_5 | Token::_2
-        );
-        assert_eq!(
-            puzzle_1().block_for(2, 2),
-            Token::_8 | Token::_5 | Token::_2
-        );
-        assert_eq!(
-            puzzle_1().block_for(3, 3),
-            Token::_9 | Token::_7 | Token::_5
-        );
+        let mut game = game_1();
+        for y in 0..super::SIDE {
+            for x in 0..super::SIDE {
+                if game.puzzle[y][x].len() == 1 {
+                    game.update_at(x, y)
+                }
+            }
+        }
+        assert_eq!(game.blocks[0][0], Token::_8 | Token::_5 | Token::_2);
+        assert_eq!(game.blocks[1][1], Token::_9 | Token::_7 | Token::_5);
     }
 
     #[test]
     fn test_1() {
-        let solution = new_puzzle([
+        let solution = Game::new([
             [8, 1, 5, 4, 2, 9, 6, 7, 3],
             [6, 9, 2, 3, 7, 8, 1, 4, 5],
             [7, 3, 4, 5, 6, 1, 2, 9, 8],
@@ -184,14 +185,14 @@ mod tests {
             [2, 8, 7, 6, 1, 3, 4, 5, 9],
             [4, 6, 9, 2, 5, 7, 3, 8, 1],
         ]);
-        let mut puzzle = puzzle_1();
-        solve(&mut puzzle);
-        assert_eq!(puzzle, solution);
+        let mut game = game_1();
+        solve(&mut game);
+        assert_eq!(game.puzzle, solution.puzzle);
     }
 
     #[test]
     fn test_2() {
-        let solution = new_puzzle([
+        let solution = Game::new([
             [9, 8, 4, 1, 3, 5, 2, 7, 6],
             [2, 5, 7, 9, 4, 6, 1, 3, 8],
             [6, 1, 3, 7, 2, 8, 9, 4, 5],
@@ -202,8 +203,8 @@ mod tests {
             [4, 2, 9, 5, 8, 1, 3, 6, 7],
             [5, 6, 1, 4, 7, 3, 8, 2, 9],
         ]);
-        let mut puzzle = puzzle_2();
-        solve(&mut puzzle);
-        assert_eq!(puzzle, solution);
+        let mut game = game_2();
+        solve(&mut game);
+        assert_eq!(game.puzzle, solution.puzzle);
     }
 }
