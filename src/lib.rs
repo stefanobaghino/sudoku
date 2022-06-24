@@ -63,7 +63,7 @@ impl Game {
     fn over(&self) -> bool {
         for y in 0..SIDE {
             for x in 0..SIDE {
-                if self.puzzle[y][x].len() > 1 {
+                if self.puzzle[y][x].iter().take(2).len() == 2 {
                     return false;
                 }
             }
