@@ -30,12 +30,29 @@ fn game_2() -> Game {
     ]);
 }
 
+fn game_3() -> Game {
+    return Game::new([
+        [6, 0, 8, 0, 0, 0, 9, 0, 4],
+        [2, 0, 0, 0, 1, 4, 0, 5, 0],
+        [0, 0, 7, 9, 0, 3, 0, 0, 0],
+        [0, 2, 0, 5, 0, 0, 0, 0, 9],
+        [0, 3, 9, 4, 0, 8, 5, 1, 0],
+        [8, 0, 0, 0, 0, 9, 0, 7, 0],
+        [0, 0, 0, 3, 0, 2, 7, 0, 0],
+        [0, 5, 0, 7, 4, 0, 0, 0, 8],
+        [9, 0, 4, 0, 0, 0, 3, 0, 6],
+    ]);
+}
+
 fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("sudoku::solve(game_1)", |b| {
         b.iter_with_setup(game_1, |mut game| sudoku::solve(black_box(&mut game)))
     });
     c.bench_function("sudoku::solve(game_2)", |b| {
         b.iter_with_setup(game_2, |mut game| sudoku::solve(black_box(&mut game)))
+    });
+    c.bench_function("sudoku::solve(game_3)", |b| {
+        b.iter_with_setup(game_3, |mut game| sudoku::solve(black_box(&mut game)))
     });
 }
 
